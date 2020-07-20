@@ -21,11 +21,11 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="gcpinventory",
     author='hm-distro',
-    version="0.0.11",
+    version="0.0.13",
     description="Service to manage GCP inventory resource",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/GoogleCloudPlatform/professional-services/tree/hm-distro-resources/infrastructure/inventory-resources",
+    url="https://github.com/hm-distro/professional-services/tree/master/tools/py-gce-utils",
     packages=['gcpinventory'],
     platforms=['any'],
     install_requires=[
