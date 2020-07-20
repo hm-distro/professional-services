@@ -15,9 +15,6 @@
 from googleapiclient import discovery
 from googleapiclient.http import HttpError
 import json
-from netblocks import netblocks
-from collections import defaultdict
-from uuid import uuid1
 import logging
 from fabric import Connection
 import time
@@ -465,96 +462,3 @@ class InventoryService:
             response = self._execute_(request)
             return response
 
-    def _default_add_callback(self, add_routes):
-        self.logger.info("%d cidr blocks to add to routes" % len(add_routes))
-
-    def _default_delete_callback(self, delete_routes):
-        self.logger.info("%d cidr blocks to delete from routes" % len(delete_routes))
-
-    def sync_gcp_service_routes(self, project, routes_prefix, priority, network, next_hop_gateway,
-                                apply_changes=False,
-                                add_callback=_default_add_callback,
-                                delete_callback=_default_delete_callback):
-        """ Update the routes for the given project to access GCP services with Google API Access for Private IPs.
-            Use this method to publish routes to Google netblocks.
-            Use this when you have a default route to something more preferred (ie VPN or NAT GW).
-            The method will add/delete the routes to match the cidr ranges listed under _spf.google.com
-            as described at https://github.com/hm-distro/netblocks/tree/master/netblocks.
-
-            This method can be called repeatedly and will continue from where it left off, in case of error.
-
-            Args:
-                project: The project id
-                routes_prefix: The prefix to use for all the routes created
-                priority: The priority of the route(integer)
-                network: The network for this route (FQDN)
-                next_hop_gateway: The next hop gateway(FQDN)
-                apply_changes : Boolean whether  to apply the changes or not
-                add_callback: the callback function to be called with the add_routes param. The default impl just logs the list
-                delete_callback: The callback function to be called with the delete_routes param.The default impl just logs the list
-
-            Raises:
-                InventoryServiceException: An exception occurred
-        """
-        # Get the current netblocks from GCP
-        latest_service_netblocks = set()
-        api = netblocks.NetBlocks()
-        all_cidr_blocks = api.fetch([netblocks.GOOGLE_INITIAL_SPF_NETBLOCK_DNS])
-        self.logger.info("Total cidr %d" % len(all_cidr_blocks))
-        for cidr in all_cidr_blocks:
-            # Only interested in the ipv4 blocks
-            if cidr.startswith("ip4"):
-                latest_service_netblocks.add(cidr[4:])  # get the ip address after the prefix 'ip4:'
-
-        self.logger.info("Total cidr(ipv4) %d" % len(latest_service_netblocks))
-
-        # Handle to the inventory service
-        inventory_service = InventoryService()
-
-        all_project_routes = inventory_service.list_routes(project)
-
-        current_routes_netblocks = set()
-
-        # dict to map the cidr range to the route name,
-        # in case there are two routes with the same destination cidr
-        current_routes_maps = defaultdict(list)
-
-        for route in all_project_routes:
-            # Only interested in routes with the prefix
-            if str(route['name']).startswith(routes_prefix):
-                current_routes_netblocks.add(route['destRange'])
-                # Do a reverse map from the destination cidr back to the route names.
-                # This in case, there are more than one route with the same destination cidr
-                current_routes_maps[route['destRange']].append(route['name'])
-
-        # Check if any routes need to be added
-        add_routes = latest_service_netblocks - current_routes_netblocks
-        # self.logger.info("%d cidr blocks to add to routes" % len(add_routes))
-        add_callback(self, add_routes)
-
-        delete_routes = current_routes_netblocks - latest_service_netblocks
-        # self.logger.info("%d cidr blocks to delete from routes" % len(delete_routes))
-        delete_callback(self, delete_routes)
-
-        if apply_changes:
-            for route in add_routes:
-                _route = inventory_service.create_route(project=project, name=routes_prefix + str(uuid1()),
-                                                        priority=priority,
-                                                        network=network, destination_range=route,
-                                                        next_hop_gateway=next_hop_gateway
-                                                        )
-                self.logger.info("Added: " + str(_route))
-        else:
-            self.logger.info("(Add)No changes applied as apply_changes:%s", apply_changes)
-
-        if apply_changes:
-            for route in delete_routes:
-                # Just in case there are multiple routes names with the same destination cidr
-                for route_name in current_routes_maps[route]:
-                    self.logger.info("Deleted: " + str(route_name))
-                    inventory_service.delete_route(project=project, route=route_name)
-        else:
-            self.logger.info("(Delete)No changes applied as apply_changes:%s", apply_changes)
-
-    def errors(self):
-        return self.errors
