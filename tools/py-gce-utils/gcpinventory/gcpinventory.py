@@ -309,26 +309,28 @@ class InventoryService:
             https://medium.com/@DazWilkin/compute-engine-identifying-your-devices-aeae6c01a4d7
 
             The disks will be mounted at /mnt/disks/<device-name>
+
+            use computeDiscoveryServiceUrl="https://www.googleapis.com/discovery/v1/apis/compute/beta/rest"
+            with the InventoryService
         """
 
-        inventory_service = InventoryService(
-            computeDiscoveryServiceUrl="https://www.googleapis.com/discovery/v1/apis/compute/beta/rest")
+
         try:
             # Get the region for primary zone
-            from_zone_object = inventory_service.get_zone(project=project, zone=primary_zone)
+            from_zone_object = self.get_zone(project=project, zone=primary_zone)
             region_uri = from_zone_object['region']
             region = region_uri[region_uri.rindex("/") + 1:]
-            regional_disks = inventory_service.list_regional_disks(project=project, region=region)
+            regional_disks = self.list_regional_disks(project=project, region=region)
 
             # Keep  set of the regional disks
             regional_disk_set = set()
             for disk in regional_disks:
                 regional_disk_set.add(disk['selfLink'])
 
-            primary_instance_object = inventory_service.get_instance(project=project, zone=primary_zone,
+            primary_instance_object = self.get_instance(project=project, zone=primary_zone,
                                                                      instance=primary_instance)
 
-            standby_instance_object = inventory_service.get_instance(project=project, zone=standby_zone,
+            standby_instance_object = self.get_instance(project=project, zone=standby_zone,
                                                                      instance=standby_instance)
             standby_ip = jq(ip_selector).transform(
                 standby_instance_object['networkInterfaces'])
@@ -343,7 +345,7 @@ class InventoryService:
                     host=standby_ip,
                     user=user,
                     connect_kwargs={
-                        "key_filename": key_filename,
+                        "key_filename": [key_filename,],
                     }) as conn:
 
                 for disk in attatched_disks:
@@ -355,7 +357,7 @@ class InventoryService:
                         disk_params['source'] = disk['source']
                         disk_params['mode'] = disk['mode']
                         disk_params['type'] = disk['type']
-                        inventory_service.attach_disk(project=project, zone=standby_zone, instance=standby_instance,
+                        self.attach_disk(project=project, zone=standby_zone, instance=standby_instance,
                                                       attached_disk_params=disk_params, force_attach=True)
 
                         mkdir_result = conn.run('sudo mkdir -p /mnt/disks/%s' % disk['deviceName'])
