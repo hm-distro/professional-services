@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: gcpinventory
-Version: 0.0.8
+Version: 0.0.14
 Summary: Service to manage GCP inventory resource
 Home-page: https://github.com/GoogleCloudPlatform/professional-services/tree/hm-distro-resources/infrastructure/inventory-resources
 Author: hm-distro
