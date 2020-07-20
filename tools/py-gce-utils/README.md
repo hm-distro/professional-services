@@ -144,7 +144,7 @@ Example:
     
     inventory_service = inventory_service.InventoryService()
                                    
-     inventory_service.list_projects()
+    inventory_service.list_projects()
 
 
 ## Helpful links
